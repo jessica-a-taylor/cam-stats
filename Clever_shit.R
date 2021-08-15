@@ -374,6 +374,8 @@ for (age in chloro_ages) {
     #testData <- rbind(testData, data.frame(Leaf_Age = age,
     #                                       Area = chloro_LA[1, chl]))
     
+    
+    # this is cool :)
   }
 
 }
