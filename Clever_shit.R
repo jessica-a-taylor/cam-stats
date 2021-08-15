@@ -320,9 +320,9 @@ for (plant in plants) {
   maxLeaf = max(maxLeaf, strtoi(str_extract(tail(chloro_content$Sample, n=1), regex("[0-9]+$"))))
   print(maxLeaf)
   
-  #area_combined <- rbind(area_combined, data.frame(Plants = rep(plant, times=strtoi(str_extract(tail(leaf_area$Sample, n=1), regex("[0-9]+$")))),
-                                                   #Leaf_Age = str_extract(leaf_area$Sample, regex("[0-9]+$")),
-                                                   #Area = leaf_area$`Leaf Area`))
+  area_combined <- rbind(area_combined, data.frame(Plants = rep(plant, times=strtoi(str_extract(tail(leaf_area$Sample, n=1), regex("[0-9]+$")))),
+                                                   Leaf_Age = str_extract(leaf_area$Sample, regex("[0-9]+$")),
+                                                   Area = leaf_area$`Leaf Area`))
   
 }
 
@@ -356,54 +356,81 @@ chlor_type <- list(
   ,"Car"
 )
 
-chlor_means <- data.frame(Leaf_Age = integer(), Means = double(), SD = double(), stringsAsFactors = FALSE)
-testData <- data.frame(Leaf_Age = integer(), Area = double(), stringsAsFactors = FALSE)
+chlor_means <- data.frame(Leaf_Age = integer(), Chlorophyll = character(), Means = double(), SD = double(), stringsAsFactors = FALSE)
+testData <- data.frame(Sample = character(), `Chlor A` = double(), `Chlor B` = double(), `A and B` = double(), `Car` = double(), stringsAsFactors = FALSE)
 
 for (age in chloro_ages) {
 
   for (chl in chlor_type) {
     chl_LA <- data.frame(Sample = chloro$Sample,
-                         Chlor = chloro[chl])
+                         chl = chloro[chl])
+    chl_LA <- setNames(chl_LA, c("Sample", chl))
     chloro_LA <- chl_LA[str_detect(chl_LA$Sample, regex(paste("Z[A-Za-z]", age, "$", sep=""))),]
     chloro_LA <- setNames(chloro_LA, c("Sample", chl))
     
+    png(paste(file="plots/chloro/histograms/hist", chl, ".png"))
+    hist(as.numeric(unlist(chloro_LA[chl])), breaks=10, xlab = chl)
+    dev.off()
+    
     chlor_means <- rbind(chlor_means, data.frame(Leaf_Age = age, 
+                                                 Chlorophyll = chl,
                                                  Means = mean(as.numeric(unlist(chloro_LA[chl])), na.rm = TRUE),
                                                  SD = sd(as.numeric(unlist(chloro_LA[chl])), na.rm = TRUE)))
 
-    #testData <- rbind(testData, data.frame(Leaf_Age = age,
-    #                                       Area = chloro_LA[1, chl]))
+    chl_means <- chlor_means[str_detect(chlor_means$Chlorophyll, chl),]
+    png(paste(file="plots/chloro/hist", chl, ".png"))
+    hist(chl_means$Means, breaks=10, xlab = chl)
+    dev.off()
+    
     
   }
+  
+  
+  ageRows <- chloro[str_detect(chloro$Sample, regex(paste(age, "$", sep=""))),]
+  ageRows <- subset(ageRows, select = -Sample)
+  ageRows$leafAge <- age
+
+  testData <- rbind(testData, ageRows)
 
 }
 
+
 # Set the names because they go away for some reason
-all_means <- setNames(all_means, c("Leaf_Age", "Means", "SD"))
-testData <- setNames(testData, c("Leaf_Age", "Leaf Area"))
+chlor_means <- setNames(chlor_means, c("Leaf_Age", "Chlorophyll", "Means", "SD"))
+testData <- setNames(testData, c("Chlor A", "Chlor B", "A and B", "Car", "leafAge"))
 
-# Do tests
-png(paste(file="plots/leafArea/hist.png"))
-hist(all_means$Means, breaks=10)
-dev.off()
+for (type in chlor_type) {
+  
+  x <- as.numeric(unlist(testData[type]))
+  y <- testData$leafAge
+  
+  chlor_Welch <- oneway.test(x ~ y, data=testData, var.equal = FALSE)
+  print(chlor_Welch)
+  
+  Dave <- chlor_means[str_detect(chlor_means$Chlorophyll, type),]
+  
+  graph2 <- ggplot(Dave, aes(x = Leaf_Age, y = Means)) +
+    scale_x_discrete(limits = titles) +
+    geom_bar(stat="identity") + theme_minimal() + lookingfine +
+    labs(x = "Leaf pair number", y = "Chlorophyll content") +
+    geom_errorbar(aes(x = Leaf_Age, y = Means, ymin = Means-SD, ymax = Means+SD), width = 0.2)
+  
+  ggsave(paste("plots/chloro/means", type, ".png"))
+}
 
-shapiro.test(all_means$Means)
-ad.test(all_means$Means)
-
-graph2_Welch <- oneway.test(`Leaf Area`~ Leaf_Age, data=testData, var.equal = FALSE)
-posthoc <- games_howell_test(testData, `Leaf Area`~ Leaf_Age, conf.level = 0.95)
-
-write_xlsx(posthoc, "plots/leafArea/posthoc.xlsx")
+#write_xlsx(posthoc, "plots/leafArea/posthoc.xlsx")
 
 # Grab the ordered list of leaf ages to order the x axis
-titles <- all_means$Leaf_Age
+titles <- chlor_means$Leaf_Age
 
 # Make and save the graph
-graph2 <- ggplot(all_means, aes(x = Leaf_Age, y = Means)) +
+graph2 <- ggplot(chlor_means, aes(x = Leaf_Age, y = Means)) +
   scale_x_discrete(limits = titles) +
-  geom_bar(stat="identity", fill="grey") + theme_minimal() + lookingfine +
-  labs(x = "Leaf pair number", y = s.script) +
+  geom_bar(stat="identity") + theme_minimal() + lookingfine +
+  labs(x = "Leaf pair number", y = "Chlorophyll content") +
   geom_errorbar(aes(x = Leaf_Age, y = Means, ymin = Means-SD, ymax = Means+SD), width = 0.2)
 
-ggsave("plots/leafArea/means_by_leaf_age.png")
+ggsave("plots/chloro/means_by_leaf_age.png")
 
+geom_bar(stat="identity", aes(fill=Chlor), show.legend = TRUE, width=0.8, position=position_dodge(0.9)) +
+  
