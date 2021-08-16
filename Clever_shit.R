@@ -9,6 +9,7 @@ library(ggforce)
 library(tidystats)
 library(writexl)
 library(MASS)
+library(ggh4x)
 library(ggpubr)
 
 
@@ -331,7 +332,7 @@ for (plant in plants) {
 chloro_ages <- map_chr(seq(2, maxLeaf, by=2), paste)
 
 # Make combined plot
-library(ggh4x)
+
 lookinggood <- theme(axis.title = element_text(size = 6, color = "black"),
                      axis.text.x=element_text(colour="gray30", size = 4, vjust = 4),
                      axis.text.y=element_text(colour="gray30", size = 4, hjust = 1),
@@ -403,7 +404,10 @@ testData <- setNames(testData, c("Chlor A", "Chlor B", "A and B", "Car", "leafAg
 lookingfine <- theme(axis.title = element_text(size = 8, color = "black"), 
                      axis.text.x=element_text(colour="gray30", size = 6), 
                      axis.text.y=element_text(colour="gray30", size = 6))
-Davez_graphz = list()
+
+lookingDave <- theme(axis.title = element_blank(),
+                     axis.text.x=element_text(colour="gray30", size = 6), 
+                     axis.text.y=element_text(colour="gray30", size = 6))
 
 for (type in chlor_type) {
   
@@ -417,21 +421,23 @@ for (type in chlor_type) {
   
   graph2 <- ggplot(Dave, aes(x = Leaf_Age, y = Means)) + 
     scale_x_discrete(limits = Dave$Leaf_Age) +
-    geom_bar(stat="identity", fill="grey") + theme_minimal() + lookingfine +
-    labs(x = "Leaf pair number", y = "Chlorophyll content") + 
+    geom_bar(stat="identity", fill="grey") + theme_minimal() + lookingDave +
     geom_errorbar(aes(x = Leaf_Age, y = Means, ymin = Means-SD, ymax = Means+SD), width = 0.2)
   
   eval(parse(text = paste("graph_", gsub(" ", "_", type), " <- ggplot(Dave, aes(x = Leaf_Age, y = Means)) + 
     scale_x_discrete(limits = Dave$Leaf_Age) +
-    geom_bar(stat=\"identity\", fill=\"grey\") + theme_minimal() + lookingfine +
-    labs(x = \"Leaf pair number\", y = \"Chlorophyll content\") + 
+    geom_bar(stat=\"identity\", fill=\"grey\") + theme_minimal() + lookingDave +
     geom_errorbar(aes(x = Leaf_Age, y = Means, ymin = Means-SD, ymax = Means+SD), width = 0.2)", sep="")))
   
   #ggsave(paste("plots/chloro/means", type, ".png"))
   
 }
-
+install.packages("tidyverse")
+library(tidyverse)
+library(reshape2)
 big_boy = ggarrange(graph_Chlor_A, graph_Chlor_B, graph_A_and_B, graph_Car)
+annotate_figure(big_boy, left = text_grob("Chlorophyll content", rot = 90, vjust = 1, size = 8),
+                bottom = text_grob("Leaf pair number", size = 8))
 
 ggsave("plots/chloro/bigboy.png")
 
@@ -450,5 +456,3 @@ graph2 <- ggplot(chlor_means, aes(x = Leaf_Age, y = Means)) +
 
 ggsave("plots/chloro/means_by_leaf_age.png")
 
-geom_bar(stat="identity", aes(fill=Chlor), show.legend = TRUE, width=0.8, position=position_dodge(0.9)) +
-  
