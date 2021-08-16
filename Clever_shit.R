@@ -9,6 +9,8 @@ library(ggforce)
 library(tidystats)
 library(writexl)
 library(MASS)
+library(ggpubr)
+
 
 # TA comparisons
 
@@ -398,6 +400,10 @@ for (age in chloro_ages) {
 # Set the names because they go away for some reason
 chlor_means <- setNames(chlor_means, c("Leaf_Age", "Chlorophyll", "Means", "SD"))
 testData <- setNames(testData, c("Chlor A", "Chlor B", "A and B", "Car", "leafAge"))
+lookingfine <- theme(axis.title = element_text(size = 8, color = "black"), 
+                     axis.text.x=element_text(colour="gray30", size = 6), 
+                     axis.text.y=element_text(colour="gray30", size = 6))
+Davez_graphz = list()
 
 for (type in chlor_type) {
   
@@ -409,14 +415,26 @@ for (type in chlor_type) {
   
   Dave <- chlor_means[str_detect(chlor_means$Chlorophyll, type),]
   
-  graph2 <- ggplot(Dave, aes(x = Leaf_Age, y = Means)) +
-    scale_x_discrete(limits = titles) +
-    geom_bar(stat="identity") + theme_minimal() + lookingfine +
-    labs(x = "Leaf pair number", y = "Chlorophyll content") +
+  graph2 <- ggplot(Dave, aes(x = Leaf_Age, y = Means)) + 
+    scale_x_discrete(limits = Dave$Leaf_Age) +
+    geom_bar(stat="identity", fill="grey") + theme_minimal() + lookingfine +
+    labs(x = "Leaf pair number", y = "Chlorophyll content") + 
     geom_errorbar(aes(x = Leaf_Age, y = Means, ymin = Means-SD, ymax = Means+SD), width = 0.2)
   
-  ggsave(paste("plots/chloro/means", type, ".png"))
+  eval(parse(text = paste("graph_", gsub(" ", "_", type), " <- ggplot(Dave, aes(x = Leaf_Age, y = Means)) + 
+    scale_x_discrete(limits = Dave$Leaf_Age) +
+    geom_bar(stat=\"identity\", fill=\"grey\") + theme_minimal() + lookingfine +
+    labs(x = \"Leaf pair number\", y = \"Chlorophyll content\") + 
+    geom_errorbar(aes(x = Leaf_Age, y = Means, ymin = Means-SD, ymax = Means+SD), width = 0.2)", sep="")))
+  
+  #ggsave(paste("plots/chloro/means", type, ".png"))
+  
 }
+
+big_boy = ggarrange(graph_Chlor_A, graph_Chlor_B, graph_A_and_B, graph_Car)
+
+ggsave("plots/chloro/bigboy.png")
+
 
 #write_xlsx(posthoc, "plots/leafArea/posthoc.xlsx")
 
