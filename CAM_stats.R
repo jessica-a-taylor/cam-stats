@@ -47,12 +47,18 @@ plants <- list(
 maxLeaf = 0
 
 combined_graph <- data.frame(Plants = character(), Leaf_Age = integer(), Means = double())
+plant_means <- data.frame(Individual = character(), Mean = double())
 
 # For each plant string in plants
 for (plant in plants) {
   # Filter mean_diff to only leaves from that plant
   LP <- mean_diff[str_detect(mean_diff$Sample, plant),]
   print(LP)
+  
+
+  # Find means across all leaves for each plant
+  plant_means <- rbind(plant_means, data.frame(Individual=plant,
+                                               Mean = mean(LP$`Dawn-Dusk (µmol H+ g-1 fwt)`, na.rm = TRUE)))
   
   # Get the ordered list of names for the graph
   titles <- LP$Sample
@@ -74,8 +80,6 @@ for (plant in plants) {
   hist(LP$`Dawn-Dusk (µmol H+ g-1 fwt)`, breaks=9)
   dev.off()
   
-  # ANOVA gives an error... "not enough observations"
-  #print(oneway.test(`Dawn-Dusk (µmol H+ g-1 fwt)`~Sample, data=LP))
   
   # Update maxLeaf if the last leaf has a higher number than what's already there
   maxLeaf = max(maxLeaf, strtoi(str_extract(tail(LP$Sample, n=1), regex("[0-9]+$"))))
@@ -86,6 +90,15 @@ for (plant in plants) {
                                Means = LP$`Dawn-Dusk (µmol H+ g-1 fwt)`))
   
 }
+
+# Test for normality of means across leaves for all plants
+hist(plant_means$Mean)
+ad.test(plant_means$Mean)
+shapiro_test(plant_means$Mean)
+
+# Test for significant differences between plants
+oneway.test(Means~Plants, data = combined_graph, var.equal = FALSE)
+games_howell_test(combined_graph, Means~Plants, conf.level = 0.95)
 
 # Generate a list of all the leaf numbers
 # [2, 4, 6, ..., maxLeaf]
@@ -167,56 +180,106 @@ ggsave("plots/means_by_leaf_age.png")
 
 
 
-# SWC comparison
+# SWC and leaf area comparison
 SWC_data <- read_xlsx(file.choose(),sheet=2)
 water <- SWC_data[c("Sample", "% water")]
 area <- SWC_data[c("Sample", "Leaf Area")]
 maxLeaf = 0
+water_combined <- data.frame(Plants = character(), Leaf_Age = integer(), Water = double())
+water_means <- data.frame(Individual = character(), Mean = double())
+
 area_combined <- data.frame(Plants = character(), Leaf_Age = integer(), Area = double())
+area_means <- data.frame(Individual = character(), Mean = double())
 
 s.script <- expression(Leaf~Area~cm^2)
 
 for (plant in plants) {
-  # Filter mean_diff to only leaves from that plant
-  leaf_area <- area[str_detect(area$Sample, plant),]
-  print(leaf_area)
-  # Get the ordered list of names for the graph
-  titles <- leaf_area$Sample
-
   
-  # Make the graph
-  graph <- ggplot(leaf_area, aes(x = Sample, y = `Leaf Area`)) +
+  # for SWC...
+  water_content <- water[str_detect(water$Sample, plant),]
+  print(water_content)
+  
+  water_means <- rbind(water_means, data.frame(Individual = plant,
+                                               Mean = mean(water_content$`% water`, na.rm = TRUE)))
+  
+  titles <- water_content$Sample
+  
+  water_graph <- ggplot(water_content, aes(x = Sample, y = `% water`)) +
     geom_bar(stat = "identity", fill="grey") + theme_minimal() + lookinggood +
     scale_x_discrete(limits = titles) +
-    labs(y = s.script, x = "Leaf pair")
+    labs(y = "Percentage water", x = "Leaf pair number")
   
   # Save the graph
-  #ggsave(paste("plots/leafArea/", plant, ".png", sep=""))
+  #ggsave(paste("plots/SWC/betweenLeaves", plant, ".png", sep=""))
   
-  # Do tests
+  print(ad.test(water_content$`% water`))
+  print(shapiro_test(water_content$`% water`))
+  
+  #png(paste(file="plots/SWC/histograms/", plant, ".png", sep=""))
+  #hist(water_content$`% water`, breaks=9)
+  #dev.off()
+  
+  water_combined <- rbind(water_combined, data.frame(Plants = rep(plant, times=strtoi(str_extract(tail(water_content$Sample, n=1), regex("[0-9]+$")))),
+                                                   Leaf_Age = str_extract(water_content$Sample, regex("[0-9]+$")),
+                                                   Water = water_content$`% water`))
+  
+  # for leaf area...
+  
+  leaf_area <- area[str_detect(area$Sample, plant),]
+  print(leaf_area)
+  
+  area_means <- rbind(area_means, data.frame(Individual = plant,
+                                             Mean = mean(leaf_area$`Leaf Area`, na.rm = TRUE)))
+
+  area_graph <- ggplot(leaf_area, aes(x = Sample, y = `Leaf Area`)) +
+    geom_bar(stat = "identity", fill="grey") + theme_minimal() + lookinggood +
+    scale_x_discrete(limits = titles) +
+    labs(y = s.script, x = "Leaf pair number")
+  
+  # Save the graph
+  #ggsave(paste("plots/leafArea/betweenLeaves", plant, ".png", sep=""))
+  
   print(ad.test(leaf_area$`Leaf Area`))
   print(shapiro_test(leaf_area$`Leaf Area`))
   
-  #png(paste(file="plots/SWC/histograms/", plant, ".png", sep=""))
+  #png(paste(file="plots/leafArea/histograms/", plant, ".png", sep=""))
   #hist(leaf_area$`Leaf Area`, breaks=9)
   #dev.off()
-  
-  # ANOVA gives an error... "not enough observations"
-  #print(oneway.test(`Dawn-Dusk (µmol H+ g-1 fwt)`~Sample, data=LP))
-  
-  # Update maxLeaf if the last leaf has a higher number than what's already there
-  maxLeaf = max(maxLeaf, strtoi(str_extract(tail(leaf_area$Sample, n=1), regex("[0-9]+$"))))
-  print(maxLeaf)
   
   area_combined <- rbind(area_combined, data.frame(Plants = rep(plant, times=strtoi(str_extract(tail(leaf_area$Sample, n=1), regex("[0-9]+$")))),
                                                    Leaf_Age = str_extract(leaf_area$Sample, regex("[0-9]+$")),
                                                    Area = leaf_area$`Leaf Area`))
-  
+ 
+  maxLeaf = max(maxLeaf, strtoi(str_extract(tail(leaf_area$Sample, n=1), regex("[0-9]+$"))))
+  print(maxLeaf)
 }
 
 leafarea <- map_chr(seq(2, maxLeaf, by=2), paste)
 
+# Test for normality of means across leaves for all plants
+hist(water_means$Mean)
+ad.test(water_means$Mean)
+shapiro_test(water_means$Mean)
+
+hist(area_means$Mean)
+ad.test(area_means$Mean)
+shapiro_test(area_means$Mean)
+
+# Test for significant differences between plants
+oneway.test(Water~Plants, data = water_combined, var.equal = FALSE)
+water_posthoc <- games_howell_test(water_combined, Water~Plants, conf.level = 0.95)
+write_xlsx(water_posthoc, "plots/SWC/posthoc.xlsx")
+
+oneway.test(Area~Plants, data = area_combined, var.equal = FALSE)
+
 # Make combined plot
+graph_water <- ggplot(water_combined, aes(x=Leaf_Age, y=Water)) +
+  geom_bar(stat="identity", aes(fill=Plants), show.legend = FALSE, width = 0.5, position=position_dodge(0.9)) +
+  scale_x_discrete(limits=leafarea) + theme_minimal() +
+  theme(strip.background = element_rect(colour = "grey", fill = "white")) + lookingfine +
+  labs(x = "Leaf pair number", y = "Percentage water") +
+  facet_wrap(vars(Plants), ncol = 2, scales="free_y") + theme(aspect.ratio = 0.4)
+
 graph_area <- ggplot(area_combined, aes(x=Leaf_Age, y=Area)) +
   geom_bar(stat="identity", aes(fill=Plants), show.legend = FALSE, width = 0.5, position=position_dodge(0.9)) +
   scale_x_discrete(limits=leafarea) + theme_minimal() +
@@ -226,38 +289,68 @@ graph_area <- ggplot(area_combined, aes(x=Leaf_Age, y=Area)) +
 
 ggsave("plots/leafArea/areaCombined.png")
 
-all_means <- data.frame(Leaf_Age = integer(), Means = double(), SD = double(), stringsAsFactors = FALSE)
-testData <- data.frame(Leaf_Age = integer(), Area = double(), stringsAsFactors = FALSE)
+all_watermeans <- data.frame(Leaf_Age = integer(), Means = double(), SD = double(), stringsAsFactors = FALSE)
+water_test <- data.frame(Leaf_Age = integer(), Area = double(), stringsAsFactors = FALSE)
+
+all_areameans <- data.frame(Leaf_Age = integer(), Means = double(), SD = double(), stringsAsFactors = FALSE)
+area_test <- data.frame(Leaf_Age = integer(), Area = double(), stringsAsFactors = FALSE)
 
 for (age in leafarea) {
+  
+  # for SWC...
+  
+  water_LA <- water[str_detect(water$Sample, regex(paste("Z[A-Za-z]", age, "$", sep=""))),]
+  print(water_LA)
+  
+  all_watermeans <- rbind(all_watermeans, data.frame(Leaf_Age = age, 
+                                               Means = mean(water_LA$`% water`, na.rm = TRUE),
+                                               SD = sd(water_LA$`% water`, na.rm = TRUE)))
+  
+  water_test <- rbind(water_test, data.frame(Leaf_Age = age,
+                                          Area = water_LA$`% water`))
+  
+  print(data.frame(Leaf_Age = age,
+                   Area = water_LA$`% water`))
+  
+  # for leaf area...
   
   area_LA <- area[str_detect(area$Sample, regex(paste("Z[A-Za-z]", age, "$", sep=""))),]
   print(area_LA)
   
-  all_means <- rbind(all_means, data.frame(Leaf_Age = age, 
+  all_areameans <- rbind(all_areameans, data.frame(Leaf_Age = age, 
                                            Means = mean(area_LA$`Leaf Area`, na.rm = TRUE),
                                            SD = sd(area_LA$`Leaf Area`, na.rm = TRUE)))
   
-  testData <- rbind(testData, data.frame(Leaf_Age = age,
+  area_test <- rbind(area_test, data.frame(Leaf_Age = age,
                                          Area = area_LA$`Leaf Area`))
   
   print(data.frame(Leaf_Age = age,
                    Area = area_LA$`Leaf Area`))
 }
 
-# Set the names because they go away for some reason
-all_means <- setNames(all_means, c("Leaf_Age", "Means", "SD"))
-testData <- setNames(testData, c("Leaf_Age", "Leaf Area"))
+all_watermeans <- setNames(all_means, c("Leaf_Age", "Means", "SD"))
+all_areameans <- setNames(all_means, c("Leaf_Age", "Means", "SD"))
+water_test <- setNames(water_test, c("Leaf_Age", "Percentage water"))
+area_test <- setNames(area_test, c("Leaf_Age", "Leaf Area"))
 
-# Do tests
-png(paste(file="plots/leafArea/hist.png"))
-hist(all_means$Means, breaks=10)
+
+png(paste(file="plots/SWC/hist.png"))
+hist(all_watermeans$Means, breaks=10)
 dev.off()
 
-shapiro.test(all_means$Means)
-ad.test(all_means$Means)
+shapiro.test(all_watermeans$Means)
+ad.test(all_watermeans$Means)
 
-graph2_Welch <- oneway.test(`Leaf Area`~ Leaf_Age, data=testData, var.equal = FALSE)
+oneway.test(`Percentage water`~ Leaf_Age, data=water_test, var.equal = FALSE)
+
+png(paste(file="plots/leafArea/hist.png"))
+hist(all_areameans$Means, breaks=10)
+dev.off()
+
+shapiro.test(all_areameans$Means)
+ad.test(all_areameans$Means)
+
+oneway.test(`Leaf Area`~ Leaf_Age, data=testData, var.equal = FALSE)
 posthoc <- games_howell_test(testData, `Leaf Area`~ Leaf_Age, conf.level = 0.95)
 
 write_xlsx(posthoc, "plots/leafArea/posthoc.xlsx")
@@ -280,11 +373,13 @@ ggsave("plots/leafArea/means_by_leaf_age.png")
 chloro_data <- read_xlsx(file.choose(),sheet=3)
 chloro <- chloro_data[c("Sample", "Chlor A", "Chlor B", "A and B", "Car")]
 maxLeaf = 0
-chloro_combined <- data.frame(Plants = character(), Leaf_Age = integer(),
+chloro_combined <- data.frame(Plants = character(),
                               Chlor_A = double(), Chlor_B = double(), 
                               A_and_B = double(), Car = double())
 all_chlor <- data.frame(Plants = character(), Leaf_Age = integer(), Chlor = character(), Chlor_content = double())
 chlor_means <- data.frame(Plants = character(), Chlor = character(), Chlor_content = double())
+all_chlormeans <-  data.frame(Individual = character(), A_mean = double(), B_mean = double(),
+                              AB_mean = double(), Car = double())
 
 for (plant in plants) {
   # Filter mean_diff to only leaves from that plant
@@ -323,13 +418,23 @@ for (plant in plants) {
   maxLeaf = max(maxLeaf, strtoi(str_extract(tail(chloro_content$Sample, n=1), regex("[0-9]+$"))))
   print(maxLeaf)
   
-  area_combined <- rbind(area_combined, data.frame(Plants = rep(plant, times=strtoi(str_extract(tail(leaf_area$Sample, n=1), regex("[0-9]+$")))),
-                                                   Leaf_Age = str_extract(leaf_area$Sample, regex("[0-9]+$")),
-                                                   Area = leaf_area$`Leaf Area`))
-  
+  chloro_combined <- rbind(chloro_combined, data.frame(Plants = plant, 
+                                                       Chlor_A = chloro_content$`Chlor A`,
+                                                       Chlor_B = chloro_content$`Chlor B`, 
+                                                       A_and_B = chloro_content$`A and B`,
+                                                       Car = chloro_content$Car))
+
+  all_chlormeans <-  rbind(all_chlormeans, data.frame(Individual = plant,
+                                                     A_mean = mean(chloro_content$`Chlor A`),
+                                                     B_mean = mean(chloro_content$`Chlor B`),
+                                                     AB_mean = mean(chloro_content$`A and B`),
+                                                     Car = mean(chloro_content$Car)))
 }
 
 chloro_ages <- map_chr(seq(2, maxLeaf, by=2), paste)
+all_chlormeans <- setNames(all_chlormeans, c("Individual", "Chlor A", "Chlor B", "A and B", "Car"))
+chloro_combined <- setNames(chloro_combined, c("Plants", "Chlor A", "Chlor B", "A and B", "Car"))
+
 
 # Make combined plot
 
@@ -398,7 +503,6 @@ for (age in chloro_ages) {
 }
 
 
-# Set the names because they go away for some reason
 chlor_means <- setNames(chlor_means, c("Leaf_Age", "Chlorophyll", "Means", "SD"))
 testData <- setNames(testData, c("Chlor A", "Chlor B", "A and B", "Car", "leafAge"))
 lookingfine <- theme(axis.title = element_text(size = 8, color = "black"), 
@@ -431,7 +535,19 @@ for (type in chlor_type) {
   
   #ggsave(paste("plots/chloro/means", type, ".png"))
   
+  print("betweenPlants")
+  png(paste(file="plots/chloro/histograms/betweenPlants/", type, ".png"))
+  hist(as.numeric(unlist(all_chlormeans[type])))
+  dev.off()
+  
+  print(ad.test(as.numeric(unlist(all_chlormeans[type]))))
+  print(shapiro_test(as.numeric(unlist(all_chlormeans[type]))))
+  
+  print(oneway.test(as.numeric(unlist(chloro_combined[type]))~Plants, data = chloro_combined, var.equal = FALSE))
+  #games_howell_test(combined_graph, Means~Plants, conf.level = 0.95)
+  
 }
+
 install.packages("tidyverse")
 library(tidyverse)
 library(reshape2)
@@ -444,10 +560,8 @@ ggsave("plots/chloro/bigboy.png")
 
 #write_xlsx(posthoc, "plots/leafArea/posthoc.xlsx")
 
-# Grab the ordered list of leaf ages to order the x axis
 titles <- chlor_means$Leaf_Age
 
-# Make and save the graph
 graph2 <- ggplot(chlor_means, aes(x = Leaf_Age, y = Means)) +
   scale_x_discrete(limits = titles) +
   geom_bar(stat="identity") + theme_minimal() + lookingfine +
